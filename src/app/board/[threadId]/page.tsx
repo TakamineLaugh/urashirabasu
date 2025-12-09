@@ -101,11 +101,12 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
             posts.map((post, index) => (
               <div key={post.id} className="bg-white p-4 rounded-lg shadow-sm">
                 <div className="flex items-center gap-2 mb-2 text-sm text-gray-600">
-                  <span className="font-bold text-green-700">{post.index} {post.name}</span>
+                  {/* ★修正箇所: post.index ではなく index + 1 を使用 */}
+                  <span className="font-bold text-green-700">{index + 1}. {post.name}</span>
                   <span className="text-gray-400">{new Date(post.created_at).toLocaleString()}</span>
                   <span className="text-gray-300">ID:{index + 1}</span>
                 </div>
-                <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
+                <p className="text-gray-800 whitespace-pre-wrap break-all">{post.content}</p>
               </div>
             ))
           )}
