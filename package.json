@@ -13,6 +13,7 @@
     "@fullcalendar/interaction": "^6.1.19",
     "@fullcalendar/react": "^6.1.19",
     "@fullcalendar/timegrid": "^6.1.19",
+    "@supabase/supabase-js": "^2.87.0",
     "next": "16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0"

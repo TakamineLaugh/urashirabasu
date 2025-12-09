@@ -1,81 +1,163 @@
-'use client'; // Next.jsのApp Routerでクライアント側の動き(クリック等)をするために必要
+'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid'; // 月表示用
-import interactionPlugin from '@fullcalendar/interaction'; // クリック操作用
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
 
 // イベントデータの型定義
 interface InternEvent {
   title: string;
-  start: string; // 'YYYY-MM-DD' 形式
-  end?: string;
-  url?: string; // イベントのリンク先
-  color?: string; // イベントの背景色
+  start: string; // 'YYYY-MM-DD'
+  url?: string;
+  color?: string;
+  description?: string;
 }
 
-// サンプルデータ（実際はここをDBやAPIから取得するように変えます）
-const SAMPLE_EVENTS: InternEvent[] = [
-  {
-    title: '【Web系】A社 1day仕事体験',
-    start: new Date().toISOString().slice(0, 10), // 今日の日付
-    color: '#3B82F6', // 青
-    url: 'https://google.com/search?q=A社インターン',
-  },
-  {
-    title: '【メーカー】B社 説明会',
-    start: '2025-12-15',
-    color: '#10B981', // 緑
-    url: 'https://google.com/search?q=B社説明会',
-  },
-  {
-    title: '【商社】C社 ES締切',
-    start: '2025-12-20',
-    color: '#EF4444', // 赤（締切など）
-    url: 'https://google.com/search?q=C社ES',
-  },
-];
-
 export default function InternCalendar() {
+  const [events, setEvents] = useState<InternEvent[]>([]);
   
-  // イベントがクリックされた時の動作
-  const handleEventClick = (info: any) => {
-    info.jsEvent.preventDefault(); // デフォルトのリンク遷移を防ぐ
-    if (info.event.url) {
-      window.open(info.event.url, '_blank'); // 別タブで開く
-    }
+  // モーダル（ポップアップ）用の状態管理
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [dailyEvents, setDailyEvents] = useState<InternEvent[]>([]);
+  
+  // ★追加: Hydrationエラーを防ぐためのフラグ
+  const [isMounted, setIsMounted] = useState(false);
+
+  // データ取得
+  useEffect(() => {
+    // コンポーネントがブラウザにマウントされたことを記録
+    setIsMounted(true);
+
+    fetch('/events.json')
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return res.json();
+      })
+      .then((data) => setEvents(data))
+      .catch((err) => console.error('データ取得エラー:', err));
+  }, []);
+
+  // ■ 日付のマス目がクリックされた時の処理
+  const handleDateClick = (arg: any) => {
+    const clickedDate = arg.dateStr;
+    const targetEvents = events.filter((event) => event.start === clickedDate);
+    
+    setSelectedDate(clickedDate);
+    setDailyEvents(targetEvents);
+    setIsOpen(true);
   };
 
+  // ■ カレンダー内のイベントバーがクリックされた時の処理
+  const handleEventClick = (info: any) => {
+    info.jsEvent.preventDefault();
+    const clickedDate = info.event.startStr;
+    const targetEvents = events.filter((event) => event.start === clickedDate);
+    
+    setSelectedDate(clickedDate);
+    setDailyEvents(targetEvents);
+    setIsOpen(true);
+  };
+
+  // ★重要: サーバー側でのレンダリング時は何も表示しない（これでエラーが消える）
+  if (!isMounted) {
+    return <div className="p-4 bg-white rounded-lg shadow-md h-96 flex items-center justify-center">Loading...</div>;
+  }
+
   return (
-    <div className="p-4 bg-white rounded-lg shadow-md">
-      <FullCalendar
-        plugins={[dayGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth" // 月表示
-        locale="ja" // 日本語化
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,dayGridWeek',
-        }}
-        events={SAMPLE_EVENTS} // データをセット
-        eventClick={handleEventClick} // クリック時の挙動
-        height="auto" // 高さを自動調整
-        contentHeight="auto"
-        dayCellClassNames="hover:bg-gray-50 cursor-pointer" // マウスオーバー時のスタイル
-      />
-      
-      {/* カレンダーのスタイル調整（Tailwind CSSと競合しないための最低限のCSS） */}
+    <>
+      {/* CSSのグローバル適用はNext.jsと競合しやすいため、styleタグを修正 */}
       <style jsx global>{`
-        .fc-toolbar-title { font-size: 1.25rem !important; font-weight: bold; }
-        .fc-button { background-color: #2563EB !important; border: none !important; }
-        .fc-button:hover { background-color: #1D4ED8 !important; }
-        .fc-day-today { background-color: #EFF6FF !important; }
-        .fc-event { cursor: pointer; border: none; padding: 2px; font-size: 0.85rem; }
-        /* 日曜日の日付を赤くする */
-        .fc-day-sun .fc-col-header-cell-cushion { color: red; }
-        /* 土曜日の日付を青くする */
-        .fc-day-sat .fc-col-header-cell-cushion { color: blue; }
+        .fc-toolbar-title { font-size: 1.1rem !important; font-weight: bold; }
+        .fc-button { background-color: #2563EB !important; border: none !important; font-size: 0.8rem !important; }
+        .fc-day-sun .fc-col-header-cell-cushion { color: #EF4444; }
+        .fc-day-sat .fc-col-header-cell-cushion { color: #3B82F6; }
+        .fc-event { border: none; font-size: 0.75rem; cursor: pointer; }
       `}</style>
-    </div>
+
+      <div className="p-4 bg-white rounded-lg shadow-md relative z-0">
+        <FullCalendar
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          locale="ja"
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth',
+          }}
+          events={events}
+          dateClick={handleDateClick}
+          eventClick={handleEventClick}
+          height="auto"
+          contentHeight="auto"
+          dayCellClassNames="hover:bg-blue-50 cursor-pointer transition-colors"
+        />
+      </div>
+
+      {/* ■ ポップアップ（モーダル）部分 */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            
+            <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
+              <h2 className="text-lg font-bold">
+                {selectedDate} の開催情報
+              </h2>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="text-white hover:bg-blue-700 rounded-full p-1"
+              >
+                ✕ 閉じる
+              </button>
+            </div>
+
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {dailyEvents.length > 0 ? (
+                <div className="space-y-3">
+                  {dailyEvents.map((evt, index) => (
+                    <a 
+                      key={index} 
+                      href={evt.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-all group"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="mt-1 w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: evt.color || '#3B82F6' }}></span>
+                        <div>
+                          <p className="font-bold text-gray-800 group-hover:text-blue-600">
+                            {evt.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            詳細を見る →
+                          </p>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>この日の予定はありません</p>
+                  <p className="text-xs mt-2">他の日付をタップしてみてね</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-gray-50 border-t text-center">
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="w-full py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 font-medium text-sm"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
