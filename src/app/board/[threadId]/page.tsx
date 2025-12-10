@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useRef } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
@@ -25,10 +25,13 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // ★追加: 画面の一番下を特定するための「目印」
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // データ取得
   const fetchData = async () => {
-    setIsLoading(true);
+    // ローディング中も画面を消さないようにsetIsLoadingは触らない（更新ボタン用）
     try {
       const { data: threadData, error: threadError } = await supabase.from('threads').select('*').eq('id', threadId).single();
       if (threadError || !threadData) {
@@ -49,6 +52,17 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
     fetchData();
   }, [threadId]);
 
+  // ★追加: 一番下までスクロールする関数
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // ★追加: 更新ボタンを押したときの処理
+  const handleReload = async () => {
+    await fetchData(); // 最新データを取得
+    setTimeout(scrollToBottom, 100); // ちょっと待ってから一番下にスクロール
+  };
+
   // 書き込み送信
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,14 +71,13 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
     setIsSubmitting(true);
     const submitName = name.trim() || '名無しの大和学生';
 
-    // ★修正ポイント1: 改行制限（3つ以上の改行を2つに縮める）
     const cleanedContent = content.replace(/\n{3,}/g, '\n\n').trim();
 
     const { error } = await supabase.from('posts').insert([
       {
         thread_id: Number(threadId),
         name: submitName,
-        content: cleanedContent, // 加工したテキストを送信
+        content: cleanedContent,
       },
     ]);
 
@@ -73,7 +86,8 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
       alert('書き込みに失敗しました');
     } else {
       setContent('');
-      await fetchData();
+      await fetchData();     // データを再取得して
+      setTimeout(scrollToBottom, 100); // 自分の書き込みが見えるようにスクロール
     }
     setIsSubmitting(false);
   };
@@ -95,7 +109,6 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
           <h1 className="text-xl md:text-2xl font-bold text-gray-800 break-all">{thread.title}</h1>
         </div>
 
-        {/* ★修正ポイント2: 下の余白を pb-64 にして、スマホで隠れないようにする */}
         <div className="space-y-4 pb-64">
           {posts.length === 0 ? <p className="text-center text-gray-500 py-8">まだ書き込みがありません。<br/>1コメをゲットしよう！</p> : posts.map((post, index) => (
             <div key={post.id} className="bg-white p-4 rounded-lg shadow-sm">
@@ -106,6 +119,8 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
               <p className="text-gray-800 whitespace-pre-wrap break-all">{post.content}</p>
             </div>
           ))}
+          {/* ★追加: ここがスクロールの目的地（見えない目印） */}
+          <div ref={bottomRef} />
         </div>
 
         {/* 書き込みフォーム */}
@@ -121,7 +136,7 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <textarea
                   className="flex-1 p-3 border border-gray-400 rounded bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 h-20 resize-none"
                   placeholder="コメントを入力..."
@@ -129,9 +144,25 @@ export default function ThreadDetail({ params }: { params: Promise<{ threadId: s
                   onChange={(e) => setContent(e.target.value)}
                   required
                 />
-                <button type="submit" disabled={isSubmitting} className="bg-green-600 text-white font-bold px-6 rounded hover:bg-green-700 disabled:bg-gray-400 shadow-md">
-                  送信
-                </button>
+                
+                <div className="flex flex-col gap-2">
+                  <button type="submit" disabled={isSubmitting} className="bg-green-600 text-white font-bold px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400 shadow-md h-10 w-20 flex items-center justify-center text-sm">
+                    送信
+                  </button>
+                  
+                  {/* ★追加: リロードボタン */}
+                  <button 
+                    type="button" 
+                    onClick={handleReload}
+                    className="bg-gray-500 text-white font-bold px-4 py-2 rounded hover:bg-gray-600 shadow-md h-8 w-20 flex items-center justify-center"
+                    title="更新して最新へ"
+                  >
+                    {/* 更新アイコン（SVG） */}
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
